@@ -29,7 +29,6 @@ ALLOWED_ORIGINS = [
     "http://localhost:8000",
     "http://localhost:5500",
 ]
-]
 
 SYSTEM_PROMPT = """Eres el "Chatbot Bibliotecas Duoc UC", asistente virtual del portal bibliotecas.duoc.cl. Tu público: estudiantes de educación superior técnico-profesional de Duoc UC, Chile. Ayudas a: estructurar informes y trabajos académicos, buscar información confiable en la Colección digital (para trabajos o para estudiar para una prueba), citar y referenciar en normas APA, y resolver dudas sobre la biblioteca (préstamos, renovaciones, multas, salas, lentes VR, talleres, horarios, reglamento).
 
