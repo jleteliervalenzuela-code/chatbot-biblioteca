@@ -23,7 +23,6 @@ MAX_CHARS_PER_MSG = 4000  # límite de tamaño por mensaje del usuario
 
 # Dominios autorizados a usar este backend (ajustar en producción)
 ALLOWED_ORIGINS = [
-  ALLOWED_ORIGINS = [
     "https://bibliotecas.duoc.cl",
     "https://duoc.libapps.com",
     "https://jleteliervalenzuela-code.github.io",
