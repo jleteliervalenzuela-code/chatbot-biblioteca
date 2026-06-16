@@ -70,12 +70,26 @@
   .header-text p{
     font-size:12px;color:#B9BDC6;margin-top:2px;
   }
-  .status{
+  .new-chat{
     margin-left:auto;
     display:flex;align-items:center;gap:6px;
-    font-size:11px;color:#B9BDC6;flex-shrink:0;
+    flex-shrink:0;
+    background:rgba(255,255,255,.10);
+    color:#fff;
+    border:1px solid rgba(255,255,255,.25);
+    border-radius:999px;
+    padding:7px 13px;
+    font-family:'Inter';font-size:12.5px;font-weight:600;
+    cursor:pointer;transition:background .15s,border-color .15s;
   }
-  .status .dot{width:7px;height:7px;border-radius:50%;background:#3DDC84}
+  .new-chat:hover{background:var(--duoc-yellow);color:var(--ink);border-color:var(--duoc-yellow)}
+  .new-chat:focus-visible{outline:2px solid var(--duoc-yellow);outline-offset:2px}
+  .new-chat svg{width:15px;height:15px;flex-shrink:0}
+  @media(max-width:520px){
+    .new-chat span{display:none}
+    .new-chat{padding:8px;border-radius:10px}
+    .new-chat svg{width:18px;height:18px}
+  }
 
   /* ── Chat area ────────────────────────── */
   .chat{
@@ -186,14 +200,17 @@
     <div class="header-text">
       <h1>Chatbot Bibliotecas Duoc UC</h1>
     </div>
-    <div class="status"><span class="dot"></span>En línea</div>
+    <button class="new-chat" id="newChat" aria-label="Empezar una nueva conversación" title="Nueva conversación">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      <span>Nueva conversación</span>
+    </button>
   </header>
 
   <div class="chat" id="chat" aria-live="polite"></div>
 
   <div class="chips" id="chips">
-    <button class="chip">¿Dónde busco información para mi informe?</button>
-    <button class="chip">¿Qué recursos hay para mi carrera?</button>
+    <button class="chip">Libros de mi asignatura</button>
+    <button class="chip">Ayúdame a buscar un libro</button>
     <button class="chip">Ayúdame a estructurar mi informe</button>
     <button class="chip">¿Cómo cito en APA?</button>
     <button class="chip">¿Cómo renuevo mis préstamos?</button>
@@ -401,13 +418,28 @@ chipsEl.addEventListener('click', e=>{
   }
 });
 
-/* ── Mensaje de bienvenida ── */
-addMsg('bot', md(
-`¡Hola! 👋 Soy tu asesor de Bibliotecas Duoc UC.
+/* ── Nueva conversación ── */
+const WELCOME = `¡Hola! 👋 Soy tu asesor de Bibliotecas Duoc UC.
 
 Puedo ayudarte a estructurar tu informe, preparar una prueba, buscar información confiable, citar en normas APA, resolver dudas sobre tu biblioteca… y muchas cosas más.
 
-¿En qué te ayudo hoy? 🚀`));
+¿En qué te ayudo hoy? 🚀`;
+
+function nuevaConversacion(){
+  if(busy) return;
+  history = [];
+  chatEl.innerHTML = '';
+  chipsEl.style.display = 'flex';
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+  inputEl.placeholder = 'Escribe tu consulta…';
+  addMsg('bot', md(WELCOME));
+  inputEl.focus();
+}
+document.getElementById('newChat').addEventListener('click', nuevaConversacion);
+
+/* ── Mensaje de bienvenida ── */
+addMsg('bot', md(WELCOME));
 inputEl.focus();
 </script>
 </body>
