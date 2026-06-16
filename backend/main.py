@@ -267,6 +267,7 @@ def elegir_modelo(historial):
 ALLOWED_ORIGINS = [
     "https://bibliotecas.duoc.cl",
     "https://duoc.libapps.com",
+    "https://jleteliervalenzuela-code.github.io",
     "http://localhost:8000",
     "http://localhost:5500",
 ]
