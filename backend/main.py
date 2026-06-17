@@ -319,14 +319,13 @@ Meta: que el estudiante se vaya sabiendo cómo hacerlo, con los recursos de Bibl
 # MANEJO DE AMBIGÜEDAD
 Si una pregunta puede entenderse como continuación del tema O como consulta general, NO asumas: responde lo general en una línea y ofrece 2-3 opciones numeradas cortas para que el estudiante elija. Ej: venían hablando de IA y preguntan "¿hay videos educativos?" → "Sí, tenemos plataformas con videos educativos. ¿Prefieres 1. videos sobre IA, el tema que veíamos, o 2. ver en general qué plataformas de video hay?" Si la pregunta es inequívoca, responde directo sin opciones.
 
-# BÚSQUEDA DE TÍTULOS / AUTORES (resuelve la consulta a la primera con datos REALES)
-Cuando pregunten por un libro, autor o título específico (ej. "¿tienen el libro de ingeniería de software de Sommerville?", "el Atlas de Netter"), el sistema YA busca ese libro en el catálogo real de la biblioteca y, si lo encuentra, te entrega un bloque "RESULTADOS DE BUSQUEDA EN EL CATALOGO" con el título real, autor, disponibilidad por sede y versión digital. Cuando recibas ese bloque:
-- Presenta el/los libro(s) con el TÍTULO en **negrita** y autor.
-- Si trae versión digital (ACCESO_DIGITAL), ofrécela como [Acceder a versión digital](enlace) — el estudiante la lee en línea con sus credenciales Duoc.
-- Indica en qué sedes hay copias físicas disponibles (viene en el bloque).
-- Pregunta de qué sede es el estudiante para confirmarle si está disponible en SU campus; cuando responda, el sistema te dará la confirmación en vivo.
-- No inventes nada: usa solo los datos del bloque.
-Si NO recibes ese bloque (el sistema no encontró el libro en el catálogo), recién entonces usa tu búsqueda web para identificar el título correcto y ofrece el enlace del Descubridor como respaldo, aclarando que ahí puede ver disponibilidad en tiempo real. Nunca afirmes que no tenemos un libro sin que el sistema lo haya buscado; recuerda que tenemos colección física y digital, incluida literatura recreativa y de ficción.
+# BÚSQUEDA DE UN LIBRO POR NOMBRE (flujo obligatorio con datos reales)
+Cuando el estudiante busca un libro ("quiero el libro X", "ando buscando el libro X", "está Edipo Rey?", "necesito el libro X"), el sistema busca ese título en el catálogo real y te entrega un bloque con los datos. Según lo que recibas:
+- Si recibes "VARIOS LIBROS COINCIDEN": el título se repite. Dile al estudiante que hay varias coincidencias, muéstrale la lista (título, autor, año) y pídele que elija cuál busca. NO consultes disponibilidad todavía.
+- Si recibes "LIBRO ENCONTRADO": confirma el título y autor, y SIEMPRE pregunta primero qué prefiere: **¿la versión digital o una copia física?** Luego:
+   · Si elige DIGITAL y hay enlace: entrégale el enlace de acceso directo (se entra con credenciales Duoc). Si no hay versión digital, ofrécele el Descubridor.
+   · Si elige FÍSICA: pregúntale de qué sede es. Cuando responda, el sistema consulta disponibilidad en vivo y le confirmas si está en su sede. Si NO está en su sede pero sí en otra, dile que puede solicitarlo en su biblioteca mediante "Préstamo intersede". Si no hay copias en ninguna sede, ofrécele la versión digital o consultar al staff.
+- Si NO recibes ningún bloque (el sistema no encontró el libro): usa tu búsqueda web para identificar el título correcto y ofrece el enlace del Descubridor como respaldo, aclarando que ahí ve disponibilidad en tiempo real. Nunca afirmes que no tenemos un libro sin que el sistema lo haya buscado; tenemos colección física y digital, incluida literatura recreativa y de ficción.
 
 # CONSTRUCTOR DE BÚSQUEDAS (tu herramienta clave)
 Cuando mencionen un tema, construye el enlace directo a los RESULTADOS en el Descubridor (no solo el home). El Descubridor busca en toda la colección física y digital a la vez (incluye lo contratado en eLibro y O'Reilly), somos una biblioteca híbrida; es la ÚNICA búsqueda que construyes por defecto. Por eso SIEMPRE va primero.
@@ -608,7 +607,7 @@ def _consulta_disponibilidad_sede(historial):
     # buscar el catkey mas reciente mencionado en la conversacion (en mensajes del asistente)
     catkey = None
     for x in reversed(historial):
-        m = re.search(r"CATKEY[:\s]+(\d+)", x["content"])
+        m = re.search(r"(?:CATKEY[:\s]+|catkey es\s+)(\d+)", x["content"])
         if m:
             catkey = m.group(1)
             break
@@ -642,68 +641,192 @@ _PALABRAS_BUSCAR_LIBRO = ("tienen el libro", "tienes el libro", "buscar el libro
                           "esta el libro", "está el libro", "encuentro el libro",
                           "hay algun libro", "hay algún libro", "buscame el libro",
                           "búscame el libro", "necesito el libro", "quiero el libro",
-                          "disponible el libro", "atlas de", "libro ")
+                          "ando buscando el libro", "disponible el libro", "tienen el texto",
+                          "el texto de", "esta disponible el", "está disponible el",
+                          "buscando el libro", "tienen disponible")
+
+
+def _parece_busqueda_libro(tl):
+    """Detecta intencion de buscar un libro. Conservador para no gatillar con
+    saludos/cortesias. Dos vias: (1) frase explicita de busqueda, (2) el mensaje
+    coincide casi exactamente con un titulo conocido del catalogo."""
+    if any(p in tl for p in _PALABRAS_BUSCAR_LIBRO):
+        return True
+    limpio = _limpia_consulta_libro(tl)
+    palabras = limpio.split()
+    # debe tener al menos 2 palabras significativas (un titulo real), evita
+    # "gracias", "ok", "si" y palabras sueltas casuales
+    if len(palabras) < 2 or len(palabras) > 7:
+        return False
+    tn = _norm_basico(limpio)
+    # match exacto con un titulo conocido
+    if tn in _LIBROS_POR_TITULO:
+        return True
+    # un titulo conocido contiene todas las palabras del texto (alta confianza)
+    for titulo_norm in _LIBROS_POR_TITULO:
+        if titulo_norm.startswith(tn) or tn.startswith(titulo_norm):
+            return True
+        # todas las palabras del usuario estan en el titulo y son >=2 palabras
+        if all(p in titulo_norm.split() for p in tn.split()):
+            return True
+    return False
+
+
+def _norm_basico(s):
+    s = (s or "").lower().strip()
+    s = s.replace("-", " ").replace("/", " ").replace(":", " ").replace(",", " ")
+    s = "".join(c for c in unicodedata.normalize("NFD", s)
+                if unicodedata.category(c) != "Mn")
+    return re.sub(r"\s+", " ", s).strip()
+
+
+# Indice de busqueda de libros por TITULO, construido desde el JSON local
+# (que ahora trae titulos reales). Mapea titulo_normalizado -> lista de libros.
+_LIBROS_POR_TITULO = {}
+for _asig in BIBLIOGRAFIA.values():
+    for _libro in _asig.get("libros", []):
+        _t = _libro.get("titulo")
+        if not _t or _t == "Recurso de la colección":
+            continue
+        _tn = _norm_basico(_t)
+        _entry = dict(_libro)
+        _entry["_asignatura"] = _asig.get("asignatura")
+        _entry["_carrera"] = _asig.get("carrera")
+        _LIBROS_POR_TITULO.setdefault(_tn, []).append(_entry)
 
 
 def _limpia_consulta_libro(texto):
-    """Extrae el termino de busqueda probable de una frase como
-    'tienen el libro de anatomia de netter?' -> 'anatomia netter'."""
-    t = texto.lower()
-    # quitar muletillas frecuentes
-    for frase in ("hola", "buenas", "por favor", "porfavor", "tienen el libro",
-                  "tienes el libro", "busco el libro", "buscame el libro",
-                  "búscame el libro", "necesito el libro", "quiero el libro",
-                  "el libro de", "esta el libro", "está el libro", "estara",
-                  "estará", "disponible", "el libro", "libro de", "libro",
-                  "se encuentra", "encuentro", "hay", "de la", "del", "de los",
-                  "¿", "?", "me puedes ayudar a buscar", "ayudame a buscar",
-                  "ayúdame a buscar", "buscar"):
+    """Extrae el termino de busqueda de una frase como
+    'quiero el libro de anatomia de netter' -> 'anatomia de netter'."""
+    t = texto.lower().strip().strip("¿?¡!.")
+    for frase in ("hola", "buenas", "por favor", "porfavor", "ando buscando el libro",
+                  "tienen el libro", "tienes el libro", "busco el libro", "buscame el libro",
+                  "búscame el libro", "necesito el libro", "quiero el libro", "buscando el libro",
+                  "el libro de", "esta el libro", "está el libro", "estara el libro",
+                  "estará el libro", "disponible el libro", "tienen el texto", "el texto de",
+                  "esta disponible el", "está disponible el", "tienen disponible",
+                  "el libro", "el texto", "libro de", "libro", "texto de",
+                  "se encuentra", "me puedes ayudar a buscar", "ayudame a buscar",
+                  "ayúdame a buscar"):
         t = t.replace(frase, " ")
-    # limpiar y quedarse con palabras significativas
-    t = re.sub(r"\s+", " ", t).strip(" ,.")
-    return t
+    # quitar palabras de inicio tipo pregunta
+    palabras = t.split()
+    while palabras and palabras[0] in ("esta", "está", "estara", "estará", "tienen",
+                                       "tienes", "hay", "encuentro", "busco", "buscar",
+                                       "quiero", "necesito", "el", "la", "los", "las",
+                                       "un", "una", "de", "disponible"):
+        palabras.pop(0)
+    t = " ".join(palabras)
+    return re.sub(r"\s+", " ", t).strip(" ,.")
+
+
+def buscar_libro_por_titulo(termino, limite=8):
+    """Busca un libro por titulo en el indice local (titulos reales del CSV).
+    Devuelve lista de libros unicos por titulo. Maneja titulos repetidos."""
+    tn = _norm_basico(termino)
+    if len(tn) < 3:
+        return []
+    # 1) coincidencia exacta de titulo
+    if tn in _LIBROS_POR_TITULO:
+        return _dedup_por_titulo(_LIBROS_POR_TITULO[tn])
+    # 2) coincidencia parcial: el termino esta contenido en el titulo o viceversa
+    encontrados = []
+    for titulo_norm, libros in _LIBROS_POR_TITULO.items():
+        if tn in titulo_norm or titulo_norm in tn:
+            encontrados.extend(libros)
+    # 3) por palabras (todas las palabras del termino estan en el titulo)
+    if not encontrados:
+        palabras = [p for p in tn.split() if len(p) > 2]
+        if palabras:
+            for titulo_norm, libros in _LIBROS_POR_TITULO.items():
+                if all(p in titulo_norm for p in palabras):
+                    encontrados.extend(libros)
+    return _dedup_por_titulo(encontrados)[:limite]
+
+
+def _dedup_por_titulo(libros):
+    """Quita duplicados por (titulo, autor); conserva el que tenga mas datos."""
+    vistos = {}
+    for l in libros:
+        clave = (_norm_basico(l.get("titulo")), _norm_basico(l.get("autor") or ""))
+        if clave not in vistos:
+            vistos[clave] = l
+    return list(vistos.values())
 
 
 def _contexto_busqueda_libro(historial):
-    """Si el estudiante busca un libro por nombre/autor, busca en el catalogo
-    (endpoint BLUEcloud), trae los primeros resultados con su disponibilidad y
-    arma el bloque de contexto. None si no aplica o no hay resultados."""
+    """Busqueda de un libro por nombre. Implementa el flujo:
+    - si el titulo se repite (varios libros distintos): pedir al estudiante que elija
+    - si es uno solo: entregar datos y dejar que el modelo pregunte digital o fisico
+    Usa el indice local (titulos reales). La disponibilidad fisica por sede se
+    consulta en vivo aparte (cuando el estudiante da su sede)."""
     ultimo = ""
     for x in reversed(historial):
         if x["role"] == "user":
             ultimo = x["content"]
             break
     tl = ultimo.lower()
-    if not any(p in tl for p in _PALABRAS_BUSCAR_LIBRO):
+    if not _parece_busqueda_libro(tl):
         return None
-    # no confundir con bibliografia de asignatura
     if any(p in tl for p in ("bibliografia", "bibliografía", "asignatura", "ramo")):
         return None
     termino = _limpia_consulta_libro(ultimo)
     if len(termino) < 3:
         return None
-    resultados = ilsws.buscar_y_detallar(termino, indice="GENERAL", max_resultados=3)
-    if not resultados:
+    libros = buscar_libro_por_titulo(termino)
+    # Si el indice local no tiene el libro, intentar en el catalogo Symphony completo
+    if not libros:
+        detalles = ilsws.buscar_y_detallar(termino, indice="GENERAL", max_resultados=5)
+        for d in detalles:
+            libros.append({
+                "titulo": d.get("titulo"),
+                "autor": d.get("autor"),
+                "catkey": d.get("catkey"),
+                "tiene_digital": bool(d.get("enlace_digital")),
+                "enlace_digital": d.get("enlace_digital"),
+                "enlace": d.get("enlace_digital") or "",
+            })
+        libros = _dedup_por_titulo(libros)
+    if not libros:
         return None
-    lineas = [f"RESULTADOS DE BUSQUEDA EN EL CATALOGO para \"{termino}\" "
-              "(datos reales del sistema; presentalos ordenados, titulo en **negrita**, "
-              "con su version digital si tiene [Acceder], y di en que sedes hay copias. "
-              "Si el estudiante luego dice su sede, confirma si esta alli. No inventes nada):"]
-    for d in resultados:
-        t = d.get("titulo") or "(sin titulo)"
-        if d.get("autor"):
-            t += f" — {d['autor']}"
-        linea = f"- TITULO: {t}"
-        dig = d.get("enlace_digital")
-        if dig and "bibliotecabuscador" not in dig and "SD_ILS" not in dig:
-            linea += f" | ACCESO_DIGITAL: {ilsws._encode_url(dig)}"
-        disp = ilsws.resumen_disponibilidad(d)
-        if disp:
-            linea += f" | {disp}"
-        if d.get("catkey"):
-            linea += f" | CATKEY: {d['catkey']}"
-        lineas.append(linea)
-    return "\n".join(lineas)
+    if len(libros) > 1:
+        # titulos repetidos o varias coincidencias: pedir que elija
+        lineas = [f"VARIOS LIBROS COINCIDEN con \"{termino}\". Dile al estudiante que hay "
+                  "varias coincidencias y muéstrale la lista para que elija cuál busca "
+                  "(no consultes disponibilidad aún). Opciones:"]
+        for l in libros:
+            etiqueta = l.get("titulo")
+            if l.get("autor"):
+                etiqueta += f" — {l['autor']}"
+            if l.get("anio"):
+                etiqueta += f" ({l['anio']})"
+            lineas.append(f"- {etiqueta}")
+        return "\n".join(lineas)
+    # un solo libro: entregar datos y guiar el flujo digital/fisico
+    l = libros[0]
+    cat = l.get("catkey")
+    tiene_dig = l.get("tiene_digital", False)
+    dig = l.get("enlace_digital") or l.get("enlace")
+    info = [f"LIBRO ENCONTRADO: \"{l.get('titulo')}\""
+            + (f" de {l['autor']}" if l.get("autor") else "")
+            + (f" ({l['anio']})" if l.get("anio") else "") + "."]
+    info.append("FLUJO OBLIGATORIO: pregunta primero si prefiere la versión DIGITAL o una "
+                "copia FÍSICA, y actúa según su respuesta:")
+    if tiene_dig and dig and "bibliotecabuscador" not in dig and "SD_ILS" not in dig:
+        info.append(f"- Si pide DIGITAL: entrégale este enlace de acceso directo: {ilsws._encode_url(dig)} "
+                    "(se entra con credenciales Duoc).")
+    else:
+        info.append("- Si pide DIGITAL: este título no tiene versión digital en el sistema; "
+                    "ofrécele buscarlo en el Descubridor y dale el enlace de búsqueda ya armado.")
+    if cat:
+        info.append(f"- Si pide FÍSICA: el catkey es {cat}. Pregúntale de qué sede es; cuando responda, "
+                    "el sistema consultará disponibilidad en vivo y le dirás si está en su sede. Si no "
+                    "está en su sede pero sí en otra, dile que puede solicitarlo en su biblioteca como "
+                    "\"Préstamo intersede\".")
+    else:
+        info.append("- Si pide FÍSICA: no tengo el identificador de catálogo de este título; "
+                    "ofrécele el Descubridor para ver disponibilidad física por sede.")
+    return "\n".join(info)
 
 
 def _contexto_bibliografia(historial):
